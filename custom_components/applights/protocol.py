@@ -85,6 +85,22 @@ def login_packet(password: str, address: str, mode: int, challenge: int | None =
     return transform(body, address, mode, challenge)
 
 
+def password_change_packet(
+    password: str, address: str, mode: int, challenge: int | None = None
+) -> bytes:
+    """Authenticated single-device password change from Android z.a.J.
+
+    The payload shares login's password encoding but uses opcode 0x85.
+    A decoded 0x58/A5 acknowledgement means accepted; 0x58/5A means rejected.
+    Always verify with a fresh login before persisting the replacement.
+    """
+    encoded = password.encode("utf-8")
+    if not 1 <= len(encoded) <= 8:
+        raise ValueError("AppLights passwords permit 1–8 UTF-8 bytes")
+    body = bytes([0x85]) + bytes(value ^ 0xA5 for value in encoded + bytes([len(encoded)]))
+    return transform(body, address, mode, challenge)
+
+
 def program_packet(program: int, address: str, mode: int, challenge: int | None = None) -> bytes:
     """Format only; caller must establish model-specific program IDs separately."""
     if not 0 <= program <= 255:

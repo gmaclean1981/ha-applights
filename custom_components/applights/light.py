@@ -11,7 +11,7 @@ from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceIn
 
 from .const import DOMAIN, MODEL
 from .protocol import STAR_SPINNER_EFFECT_OFFSETS, STAR_SPINNER_THEMES, star_spinner_program
-from .transport import AppLightsError, InvalidAuth
+from .transport import AppLightsError, InvalidAuth, PasswordChangeUncertain
 
 PRESETS = {
     f"{theme} / {effect}": star_spinner_program(theme, effect)
@@ -98,6 +98,10 @@ class AppLightsLight(LightEntity):
                 self.async_write_ha_state()
                 if isinstance(exc, InvalidAuth):
                     self._entry.async_start_reauth(self.hass)
+                if isinstance(exc, PasswordChangeUncertain):
+                    raise HomeAssistantError(
+                        "Finish password verification in the AppLights integration settings"
+                    ) from None
                 raise HomeAssistantError(
                     "AppLights command failed; check range, password, and that AppLights is closed"
                 ) from None

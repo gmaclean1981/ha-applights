@@ -5,26 +5,100 @@
     "step": {
       "user": {
         "title": "Connect your AppLights Star Spinner",
-        "description": "Keep AppLights closed. Choose the light or enter its Bluetooth address and existing password. Setup verifies the password without changing the light. Supports Star SpinnerC / BTM2-5 only.",
-        "data": {"address": "Light", "password": "Existing AppLights password"}
+        "description": "Keep AppLights closed. Choose Star SpinnerC / BTM2-5 and enter its current password, or select the factory default and leave the password field blank. Factory default does not reset the light. Optionally request a new password on the next screen.",
+        "data": {
+          "address": "Light",
+          "use_factory_password": "Use factory-default password (000000)",
+          "password": "Current AppLights password",
+          "change_password": "Set a new password after connecting"
+        }
       },
       "password": {
         "title": "Connect {name}",
-        "description": "Keep the AppLights app closed. Enter the light's existing password. Its password and output will not be changed during setup.",
-        "data": {"password": "Existing AppLights password"}
+        "description": "Enter the current password, or choose the documented factory default 000000 and leave the password field blank. This only tries that password; it does not reset the light. Keep AppLights closed. Select the optional change below to choose a new password on the next screen.",
+        "data": {
+          "use_factory_password": "Use factory-default password (000000)",
+          "password": "Current AppLights password",
+          "change_password": "Set a new password after connecting"
+        }
+      },
+      "new_password": {
+        "title": "Set a new light password",
+        "description": "Enter and confirm a new password (1–8 UTF-8 bytes; up to 8 plain ASCII characters). Submit changes this light's password. Keep a copy until verification finishes. Home Assistant will disconnect and verify a fresh login before saving it. Keep the AppLights phone app closed. The light's output is not changed.",
+        "data": {
+          "new_password": "New password",
+          "confirm_password": "Confirm new password"
+        }
+      },
+      "recover_password": {
+        "title": "Verify the password change",
+        "description": "The change may have reached the light, but its current password could not be verified. Submit retries login with the proposed password, then the previous password only if the proposed one is rejected. It does not send another password change. Close AppLights and check power/range. If you cancel or Home Assistant restarts, remember both passwords: use setup or 'Update saved password' with the new one first, then the previous one if rejected."
       }
     },
     "error": {
       "invalid_address": "Enter a Bluetooth address in AA:BB:CC:DD:EE:FF format.",
-      "invalid_password": "The password must contain 1 to 8 UTF-8 bytes.",
-      "invalid_auth": "The light rejected this password. Enter the existing AppLights password.",
+      "invalid_password": "Use 1 to 8 UTF-8 bytes (up to 8 plain ASCII characters).",
+      "choose_one_password": "Leave Current AppLights password blank when using the factory default.",
+      "invalid_auth": "The light rejected the current password. For an existing device, use Update saved password if it was changed elsewhere. Factory default works only when the light currently uses 000000.",
       "not_supported": "This light does not identify as the supported Star SpinnerC / BTM2-5.",
-      "cannot_connect": "Could not connect. Close AppLights, check power and Bluetooth range, then try again."
+      "cannot_connect": "Could not complete the connection. Close AppLights, check power and Bluetooth range, then try again.",
+      "password_mismatch": "The two new passwords must match.",
+      "same_password": "Choose a password different from the current password.",
+      "change_rejected": "The light rejected the password change. Home Assistant retained the previous password.",
+      "change_not_applied": "The new password was rejected and the previous password still works. No replacement was saved. You may explicitly try a change again.",
+      "verification_pending": "Could not verify the current password. Check power and range, then retry verification. No additional change was sent."
     },
     "abort": {
       "already_configured": "This light is already configured.",
       "not_supported": "Only Star SpinnerC / BTM2-5 has been validated.",
-      "reauth_successful": "Password updated and integration reloaded."
+      "reauth_successful": "Verified password saved and integration reloaded."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "AppLights password settings",
+        "menu_options": {
+          "change_password": "Change the light's password",
+          "update_password": "Update saved password (light already changed/reset)"
+        }
+      },
+      "change_password": {
+        "title": "Change the light's password",
+        "description": "Home Assistant will authenticate with its saved current password. Enter and confirm a new password (1–8 UTF-8 bytes; up to 8 plain ASCII characters). Submit changes this light's password. Keep a copy until verification finishes. Home Assistant will disconnect and verify a fresh login before saving it. Keep the AppLights phone app closed. The light's output is not changed.",
+        "data": {
+          "new_password": "New password",
+          "confirm_password": "Confirm new password"
+        }
+      },
+      "update_password": {
+        "title": "Update Home Assistant's saved password",
+        "description": "Use this after changing the password in AppLights, resetting the light, or recovering from an interrupted change. This verifies a login and updates Home Assistant only; it does not change the light's password. For factory default, select the checkbox and leave the field blank.",
+        "data": {
+          "use_factory_password": "Use factory-default password (000000)",
+          "password": "Current AppLights password"
+        }
+      },
+      "recover_password": {
+        "title": "Verify the password change",
+        "description": "The change may have reached the light, but its current password could not be verified. Submit retries login with the proposed password, then the previous password only if the proposed one is rejected. It does not send another password change. Close AppLights and check power/range. If you cancel or Home Assistant restarts, remember both passwords: use setup or 'Update saved password' with the new one first, then the previous one if rejected."
+      }
+    },
+    "error": {
+      "invalid_address": "Enter a Bluetooth address in AA:BB:CC:DD:EE:FF format.",
+      "invalid_password": "Use 1 to 8 UTF-8 bytes (up to 8 plain ASCII characters).",
+      "choose_one_password": "Leave Current AppLights password blank when using the factory default.",
+      "invalid_auth": "The light rejected the current password. For an existing device, use Update saved password if it was changed elsewhere. Factory default works only when the light currently uses 000000.",
+      "not_supported": "This light does not identify as the supported Star SpinnerC / BTM2-5.",
+      "cannot_connect": "Could not complete the connection. Close AppLights, check power and Bluetooth range, then try again.",
+      "password_mismatch": "The two new passwords must match.",
+      "same_password": "Choose a password different from the current password.",
+      "change_rejected": "The light rejected the password change. Home Assistant retained the previous password.",
+      "change_not_applied": "The new password was rejected and the previous password still works. No replacement was saved. You may explicitly try a change again.",
+      "verification_pending": "Could not verify the current password. Check power and range, then retry verification. No additional change was sent."
+    },
+    "abort": {
+      "entry_not_loaded": "Load or reload the AppLights integration before managing its password."
     }
   }
 }

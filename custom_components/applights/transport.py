@@ -6,10 +6,19 @@ import asyncio
 import logging
 from contextlib import suppress
 
-from .protocol import NOTIFY_UUID, TYPE_UUID, WRITE_UUID, login_packet, program_packet, transform
+from .protocol import (
+    NOTIFY_UUID,
+    TYPE_UUID,
+    WRITE_UUID,
+    login_packet,
+    password_change_packet,
+    program_packet,
+    transform,
+)
 
 _LOGGER = logging.getLogger(__name__)
 IDLE_HOLD_SECONDS = 30
+REPLY_TIMEOUT_SECONDS = 8
 
 
 class AppLightsError(Exception):
@@ -22,6 +31,18 @@ class InvalidAuth(AppLightsError):
 
 class UnsupportedDevice(AppLightsError):
     """The model's protocol differs from the verified one."""
+
+
+class PasswordChangeRejected(AppLightsError):
+    """The device explicitly rejected the password change."""
+
+
+class PasswordChangeNotApplied(AppLightsError):
+    """The new password was rejected and the original still authenticates."""
+
+
+class PasswordChangeUncertain(AppLightsError):
+    """A write may have taken effect; verification is required before more commands."""
 
 
 class AppLightsTransport:
@@ -46,11 +67,17 @@ class AppLightsTransport:
         self._close_failures = 0
         self._last_command_ms = None
         self._last_command_reused = None
+        self._reply = None
+        self._pending_password = None
         self.closed = False
 
     @property
     def connection_open(self):
         return self._client is not None and self._client.is_connected
+
+    @property
+    def password_change_pending(self):
+        return self._pending_password is not None
 
     def diagnostics(self):
         """Session counters only; never return credentials or wire data."""
@@ -65,6 +92,7 @@ class AppLightsTransport:
             "disconnect_failures": self._close_failures,
             "last_command_ms": self._last_command_ms,
             "last_command_reused_connection": self._last_command_reused,
+            "password_change_pending": self.password_change_pending,
         }
 
     async def _cancel_idle_locked(self):
@@ -78,6 +106,7 @@ class AppLightsTransport:
         # Discard authentication even when disconnect fails. Retain that client
         # until cleanup succeeds so it cannot be abandoned for a second session.
         self._challenge = None
+        self._reply = None
         client = self._client
         if client is None:
             return
@@ -115,6 +144,8 @@ class AppLightsTransport:
         async with self._lock:
             if self.closed:
                 raise AppLightsError("Integration is unloading")
+            if self.password_change_pending:
+                raise PasswordChangeUncertain("Finish password verification in AppLights settings")
             await self._cancel_idle_locked()
             started = asyncio.get_running_loop().time()
             reused = self.connection_open and self._challenge is not None
@@ -166,29 +197,48 @@ class AppLightsTransport:
                     ) from None
                 raise
 
-    async def _authenticate(self, client, challenge):
+    async def _request_reply(self, client, packet, opcode):
+        accepted = asyncio.get_running_loop().create_future()
+        self._reply = (opcode, accepted)
+        try:
+            async with asyncio.timeout(REPLY_TIMEOUT_SECONDS):
+                await client.write_gatt_char(WRITE_UUID, packet, response=True)
+                return await accepted
+        finally:
+            self._reply = None
+
+    async def _authenticate(self, client, challenge, password=None):
         stage = "protocol identification"
         try:
             async with asyncio.timeout(25):
                 identifier = await client.read_gatt_char(TYPE_UUID)
                 if bytes(identifier).rstrip(b"\0") != b"BTM2-5":
                     raise UnsupportedDevice("Only Star SpinnerC / BTM2-5 is supported")
-                accepted = asyncio.get_running_loop().create_future()
                 stage = "password login"
 
                 def notification(_characteristic, value):
                     decoded = transform(bytes(value), self._address, 3, challenge)
-                    if len(decoded) == 2 and decoded[0] == 0x37 and not accepted.done():
-                        accepted.set_result(decoded[1])
+                    reply = self._reply
+                    if (
+                        reply
+                        and len(decoded) == 2
+                        and decoded[0] == reply[0]
+                        and not reply[1].done()
+                    ):
+                        reply[1].set_result(decoded[1])
 
                 await client.start_notify(NOTIFY_UUID, notification)
                 self._notifying = True
-                await client.write_gatt_char(
-                    WRITE_UUID,
-                    login_packet(self._password, self._address, 3, challenge),
-                    response=True,
+                result = await self._request_reply(
+                    client,
+                    login_packet(
+                        self._password if password is None else password,
+                        self._address,
+                        3,
+                        challenge,
+                    ),
+                    0x37,
                 )
-                result = await asyncio.wait_for(accepted, 8)
                 if result == 0x5A:
                     raise InvalidAuth("The light rejected the password")
                 if result != 0xA5:
@@ -197,6 +247,113 @@ class AppLightsTransport:
             raise
         except Exception as exc:
             raise AppLightsError(f"Bluetooth {stage} failed ({type(exc).__name__})") from None
+
+    async def _fresh_login_locked(self, password):
+        await self._disconnect_locked()
+        client, challenge = await self._connect()
+        self._client = client
+        self._connections += 1
+        if challenge is None:
+            raise AppLightsError("No usable connection challenge")
+        await self._authenticate(client, challenge, password)
+        self._challenge = challenge
+        return client, challenge
+
+    async def _cleanup_password_locked(self):
+        try:
+            await self._disconnect_locked()
+        except AppLightsError:
+            _LOGGER.warning("Bluetooth cleanup failed during password management")
+
+    async def verify_password(self, password):
+        """Verify a replacement saved credential without changing the device."""
+        login_packet(password, self._address, 3, 0)
+        async with self._lock:
+            if self.closed:
+                raise AppLightsError("Integration is unloading")
+            if self.password_change_pending:
+                raise PasswordChangeUncertain("Finish password verification first")
+            await self._cancel_idle_locked()
+            try:
+                await self._fresh_login_locked(password)
+                await self._disconnect_locked()
+            except AppLightsError:
+                raise
+            except Exception as exc:
+                raise AppLightsError(
+                    f"Password verification failed ({type(exc).__name__})"
+                ) from None
+            finally:
+                await self._cleanup_password_locked()
+
+    async def _resolve_password_locked(self):
+        """Try the new credential, then the old only on explicit rejection. No writes."""
+        replacement = self._pending_password
+        if replacement is None:
+            raise AppLightsError("No password change is pending")
+        try:
+            try:
+                await self._fresh_login_locked(replacement)
+                verified = replacement
+            except InvalidAuth:
+                await self._fresh_login_locked(self._password)
+                verified = self._password
+            await self._disconnect_locked()
+        except Exception:
+            raise PasswordChangeUncertain(
+                "The password change needs verification; do not repeat the change"
+            ) from None
+        self._password = verified
+        self._pending_password = None
+        return verified
+
+    async def resolve_password_change(self):
+        """Retry verification only, including after an interrupted settings flow."""
+        async with self._lock:
+            if self.closed:
+                raise AppLightsError("Integration is unloading")
+            await self._cancel_idle_locked()
+            try:
+                return await self._resolve_password_locked()
+            finally:
+                await self._cleanup_password_locked()
+
+    async def change_password(self, replacement):
+        """Change once, then verify on a fresh connection; never replay the write."""
+        password_change_packet(replacement, self._address, 3, 0)
+        async with self._lock:
+            if self.closed:
+                raise AppLightsError("Integration is unloading")
+            if self.password_change_pending:
+                raise PasswordChangeUncertain("Finish password verification first")
+            if replacement == self._password:
+                raise ValueError("Choose a different password")
+            await self._cancel_idle_locked()
+            try:
+                client, challenge = await self._fresh_login_locked(self._password)
+                packet = password_change_packet(replacement, self._address, 3, challenge)
+                # Set before attempting the write: even cancellation or timeout can
+                # occur after the peripheral has committed its new credential.
+                self._pending_password = replacement
+                try:
+                    result = await self._request_reply(client, packet, 0x58)
+                except Exception:
+                    result = None  # Resolve by fresh login, never by sending again.
+                if result == 0x5A:
+                    self._pending_password = None
+                    raise PasswordChangeRejected("The light rejected the password change")
+                verified = await self._resolve_password_locked()
+                if verified != replacement:
+                    raise PasswordChangeNotApplied(
+                        "The original password still works; change not applied"
+                    )
+                _LOGGER.info("AppLights password change verified on a fresh connection")
+            except AppLightsError:
+                raise
+            except Exception as exc:
+                raise AppLightsError(f"Password change failed ({type(exc).__name__})") from None
+            finally:
+                await self._cleanup_password_locked()
 
     async def close(self):
         self.closed = True
