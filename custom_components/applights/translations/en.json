@@ -1,0 +1,30 @@
+{
+  "title": "AppLights",
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Connect your AppLights Star Spinner",
+        "description": "Keep AppLights closed. Choose the light or enter its Bluetooth address and existing password. Setup verifies the password without changing the light. Supports Star SpinnerC / BTM2-5 only.",
+        "data": {"address": "Light", "password": "Existing AppLights password"}
+      },
+      "password": {
+        "title": "Connect {name}",
+        "description": "Keep the AppLights app closed. Enter the light's existing password. Its password and output will not be changed during setup.",
+        "data": {"password": "Existing AppLights password"}
+      }
+    },
+    "error": {
+      "invalid_address": "Enter a Bluetooth address in AA:BB:CC:DD:EE:FF format.",
+      "invalid_password": "The password must contain 1 to 8 UTF-8 bytes.",
+      "invalid_auth": "The light rejected this password. Enter the existing AppLights password.",
+      "not_supported": "This light does not identify as the supported Star SpinnerC / BTM2-5.",
+      "cannot_connect": "Could not connect. Close AppLights, check power and Bluetooth range, then try again."
+    },
+    "abort": {
+      "already_configured": "This light is already configured.",
+      "not_supported": "Only Star SpinnerC / BTM2-5 has been validated.",
+      "reauth_successful": "Password updated and integration reloaded."
+    }
+  }
+}
