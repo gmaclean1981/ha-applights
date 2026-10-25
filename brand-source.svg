@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <title>AppLights community integration</title>
+  <rect width="256" height="256" rx="52" fill="#14263d"/>
+  <path d="M128 30 151 96 221 98 165 141 185 208 128 168 71 208 91 141 35 98 105 96Z"
+        fill="none" stroke="#50e3c2" stroke-width="12" stroke-linejoin="round"/>
+  <circle cx="128" cy="30" r="12" fill="#ffd166"/>
+  <circle cx="221" cy="98" r="12" fill="#f475a8"/>
+  <circle cx="185" cy="208" r="12" fill="#77aaff"/>
+  <circle cx="71" cy="208" r="12" fill="#ffd166"/>
+  <circle cx="35" cy="98" r="12" fill="#77aaff"/>
+</svg>

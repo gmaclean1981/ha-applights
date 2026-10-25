@@ -1,0 +1,16 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.venv/
+private/
+test-results.xml
+dist/
+.env
+*.apk
+*.pcap
+*.pcapng
+*.btsnoop
+captures/
+backups/
+decompiled/
