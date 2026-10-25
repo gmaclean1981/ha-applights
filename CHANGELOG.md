@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0 — 2026-10-25
+
+Adds factory-default onboarding and password management to the existing local BLE integration.
+Upgrade through HACS and restart Home Assistant; keep the existing AppLights entry and entity.
+
+- Explicit factory-default login during discovery/manual setup; does not reset the light.
+- Optional new password during onboarding and later password changes through integration options.
+- Fresh-login verification before saving a changed password, with verification-only recovery
+  after ambiguous writes; no automatic change replay.
+- Update-saved-password flow for external changes or physical resets, preserving the device/entity.
+- Password matching and UTF-8 byte-limit validation; no credentials in diagnostics or error text.
+- Fixed the README icon URL for HACS rendering.
+- Validation: 40 offline tests and lint passed. The owner confirmed a real password change,
+  same-current-password rejection and mismatch handling. Post-change diagnostics confirmed
+  fresh authentication, two successful on/off commands and idle release without disconnect errors.
+  Factory-default onboarding and interrupted-change recovery remain automated-test coverage only.
+- Developed using an AI coding agent (OpenAI Codex).
+
 ## 0.1.0 — 2026-10-25
 
 First public release, packaging the locally tested 0.1.0b4 behaviour.

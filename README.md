@@ -1,6 +1,6 @@
 # AppLights for Home Assistant
 
-<img src="custom_components/applights/brand/icon.png" width="96" alt="AppLights community integration icon">
+<img src="https://raw.githubusercontent.com/gmaclean1981/ha-applights/main/custom_components/applights/brand/icon.png" width="96" alt="AppLights community integration icon">
 
 Local Bluetooth control for the **AppLights Star SpinnerC**, reporting protocol
 **BTM2-5**. Control the light directly from Home Assistant using a local Bluetooth
@@ -20,7 +20,7 @@ an integration shipped with Home Assistant. Only the model below has been tested
 | Tested light | Advertises as **Star SpinnerC**, identifies as **BTM2-5** |
 | Power | On/off |
 | Effects | 61 named theme/effect combinations in the light's Effect selector |
-| Authentication | Existing AppLights password; no password reset or change |
+| Authentication | Existing password or explicit factory-default login; optional verified password changes |
 | Bluetooth routing | Home Assistant adapters and active ESPHome proxies |
 | Responsiveness | Authenticated session held for **30 seconds after the last successful command** |
 | State | Assumed: the last successful command, without independent readback |
@@ -40,11 +40,51 @@ or active ESPHome proxy within range of the light.
 3. Find **AppLights**, download the latest release, and restart Home Assistant.
 4. Go to **Settings → Devices & services → Add integration → AppLights**, or use
    the discovered device card.
-5. Close the AppLights phone app, choose the light and enter its existing password.
-   Setup verifies the login without changing the light's output or password.
+5. Close the AppLights phone app, choose the light and enter its current password,
+   or select **Use factory-default password (000000)** and leave the password field
+   blank. That selection only attempts a login; it does not reset the light.
+6. Optionally select **Set a new password after connecting**. The next screen asks
+   for the new password twice. Submitting that screen changes the device password,
+   then verifies a fresh login before saving it. Setup never changes the output.
 
 This repository is installed as a **HACS custom repository**; it is not listed in
 the default HACS catalogue.
+
+### Password settings (v0.2.0)
+
+Open the existing AppLights integration's configuration/options menu:
+
+- **Change the light's password** authenticates using HA's saved password, sends
+  one change to this device, disconnects, and checks a new login before saving it.
+- **Update saved password** verifies a password without changing the device. Use
+  this after a change made in the phone app, a physical reset, or an interrupted
+  change. The factory-default checkbox is available here too.
+
+Passwords must contain 1–8 UTF-8 bytes (up to eight plain ASCII characters). The
+two new entries must match and differ from the current password. Password fields
+are masked and are not populated with stored values. Other controllers will need
+the new password after a successful change.
+
+If delivery is ambiguous, the integration attempts a fresh login with the proposed
+password; only if explicitly rejected does it try the previous password. It never
+automatically repeats a password-change write. If neither can be verified, normal
+commands pause and **Verify the password change** offers verification-only retries.
+If the previous password still works, the form reports that the change was not
+applied; another write requires an explicit new submission.
+
+Keep both passwords until completion. Pending recovery credentials are retained
+only in memory, not in diagnostics or persistent settings. After cancelling an
+initial setup or restarting HA during an unresolved change, use setup or **Update
+saved password** with the proposed password first, then the previous one if the
+light rejects it. A forgotten password still requires the manufacturer's physical
+reset procedure; there is no remote reset or authentication bypass.
+
+These functions were tested locally in 0.2.0b1 before release. The owner confirmed a successful password change and
+correct rejection of matching-current and mismatched new passwords on the real
+Star SpinnerC. Post-change diagnostics confirmed fresh authentication, on/off
+command delivery and idle connection release. Factory-default onboarding and
+interrupted-change recovery are covered by automated tests, but have not yet
+been exercised on a factory-default device or under an induced hardware failure.
 
 ### Existing manual installation
 
@@ -56,7 +96,7 @@ local 0.1.0 beta builds, so the existing device, password and entity are retaine
 ### Manual installation
 
 Copy `custom_components/applights` from a release into your Home Assistant
-`config/custom_components/` directory, restart, then follow setup steps 4–5 above.
+`config/custom_components/` directory, restart, then follow setup steps 4–6 above.
 Do not copy tests or the repository root into `custom_components`.
 
 ## Use and connection behaviour
@@ -127,6 +167,14 @@ The first release packages the locally tested 0.1.0b4 control behaviour:
   light stayed on during the pause and then switched off. The timer restarted and
   diagnostics confirmed idle disconnection with no disconnect errors. These are
   sample transport timings, not guaranteed physical response times.
+
+Version 0.2.0 adds 20 password-management tests, for **40 offline tests** in total.
+They cover factory-default onboarding, optional setup and later password changes,
+validation, lost acknowledgements, cancellation, recovery without replaying a
+change, and updating saved credentials. The owner confirmed a real password change
+and validation errors; post-change diagnostics confirmed authentication, on/off
+delivery and idle release. Failure recovery and factory-default onboarding have
+automated coverage but have not been exercised under those conditions on hardware.
 
 For development on Linux with Python 3.14:
 
